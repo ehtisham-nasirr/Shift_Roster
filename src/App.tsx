@@ -38,6 +38,11 @@ const PAKISTANI_EVENTS: Record<string, string> = {
   "09-06": "Defence Day",
   "11-09": "Iqbal Day",
   "12-25": "Quaid-e-Azam Day",
+  // 2026 Lunar Estimates
+  "03-20": "Eid-ul-Fitr",
+  "03-21": "Eid-ul-Fitr Holiday",
+  "05-27": "Eid-ul-Adha",
+  "05-28": "Eid-ul-Adha Holiday",
 };
 
 const SHIFT_SEQUENCE = ["Morning", "Evening", "Night"];
@@ -306,6 +311,7 @@ function Dashboard({ roster, shiftTimes, currentDate, setCurrentDate }: {
                 dayRoster={groupedRoster[dateStr]} 
                 shiftTimes={shiftTimes} 
                 currentShiftIndex={getShiftIndex(currentShiftName || "")}
+                todayStr={todayStr}
               />
             ))
           ) : (
@@ -321,16 +327,16 @@ function Dashboard({ roster, shiftTimes, currentDate, setCurrentDate }: {
   );
 }
 
-function DaySection({ dateStr, dayRoster, shiftTimes, currentShiftIndex }: { 
+function DaySection({ dateStr, dayRoster, shiftTimes, currentShiftIndex, todayStr }: { 
   dateStr: string, 
   dayRoster: RosterItem[], 
   shiftTimes: ShiftTimes, 
   currentShiftIndex: number,
+  todayStr: string,
   key?: string 
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const date = parseISO(dateStr);
-  const todayStr = format(new Date(), "yyyy-MM-dd");
   const isToday = dateStr === todayStr;
   
   const monthDay = format(date, "MM-dd");
@@ -341,6 +347,7 @@ function DaySection({ dateStr, dayRoster, shiftTimes, currentShiftIndex }: {
     .filter(r => {
       if (!isToday) return true;
       // If today, only show shifts that are AFTER the current one
+      // This prevents showing the currently active shift in the "Upcoming" section
       return getShiftIndex(r.shift_type) > currentShiftIndex;
     })
     .sort((a, b) => getShiftIndex(a.shift_type) - getShiftIndex(b.shift_type));
@@ -424,10 +431,26 @@ function EngineerCard({ engineer, times, isEventDay }: { engineer: RosterItem, t
   return (
     <motion.div 
       whileHover={{ y: -4, scale: 1.02 }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      animate={isEventDay ? {
+        boxShadow: [
+          "0 0 20px rgba(16, 185, 129, 0.1)",
+          "0 0 40px rgba(16, 185, 129, 0.3)",
+          "0 0 20px rgba(16, 185, 129, 0.1)"
+        ]
+      } : {}}
+      transition={isEventDay ? { 
+        boxShadow: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+        type: "spring", 
+        stiffness: 400, 
+        damping: 25 
+      } : { 
+        type: "spring", 
+        stiffness: 400, 
+        damping: 25 
+      }}
       className={cn(
         "p-6 rounded-[2rem] card-gradient backdrop-blur-md border border-white/5 hover:border-emerald-500/30 transition-all group relative overflow-hidden shadow-xl",
-        isEventDay && "border-emerald-500/20 shadow-emerald-500/5"
+        isEventDay && "border-emerald-500/40"
       )}
     >
       <div className={cn(
