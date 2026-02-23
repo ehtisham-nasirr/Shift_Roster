@@ -1,18 +1,12 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import mongoose from "mongoose";
 import multer from "multer";
-import path from "path";
 import dotenv from "dotenv";
 import cors from "cors";
 
 dotenv.config();
 
-// ── Mongoose schemas ────────────────────────────────────────────────────────
-
-const engineerSchema = new mongoose.Schema({
-  name: { type: String, unique: true, required: true },
-});
+// ── Mongoose schemas ─────────────────────────────────────────────────────────
 
 const rosterSchema = new mongoose.Schema({
   date: { type: String, required: true },
@@ -26,17 +20,22 @@ const settingsSchema = new mongoose.Schema({
   value: { type: String, required: true },
 });
 
-const Engineer = mongoose.model("Engineer", engineerSchema);
-const Roster = mongoose.model("Roster", rosterSchema);
-const Settings = mongoose.model("Settings", settingsSchema);
+// Prevent model re-compilation in serverless hot-reload
+const Roster =
+  mongoose.models["Roster"] || mongoose.model("Roster", rosterSchema);
+const Settings =
+  mongoose.models["Settings"] || mongoose.model("Settings", settingsSchema);
 
-// ── Connect and seed ─────────────────────────────────────────────────────────
+// ── DB connection (cached for serverless) ────────────────────────────────────
+
+let isConnected = false;
 
 async function connectDB() {
+  if (isConnected) return;
   const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error("MONGODB_URI is not set in .env");
+  if (!uri) throw new Error("MONGODB_URI is not set");
   await mongoose.connect(uri);
-  console.log("Connected to MongoDB");
+  isConnected = true;
 
   // Seed defaults
   await Settings.updateOne(
@@ -60,12 +59,18 @@ async function connectDB() {
   );
 }
 
-// ── Express app ──────────────────────────────────────────────────────────────
+// ── Express app ───────────────────────────────────────────────────────────────
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
-const upload = multer({ storage: multer.memoryStorage() });
+multer({ storage: multer.memoryStorage() });
+
+// Middleware to ensure DB is connected before every request
+app.use(async (_req, _res, next) => {
+  await connectDB();
+  next();
+});
 
 // Login
 app.post("/api/login", async (req, res) => {
@@ -129,28 +134,4 @@ app.post("/api/roster/confirm", async (req, res) => {
   }
 });
 
-// ── Start server ─────────────────────────────────────────────────────────────
-
-async function startServer() {
-  await connectDB();
-
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(process.cwd(), "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(process.cwd(), "dist", "index.html"));
-    });
-  }
-
-  const PORT = Number(process.env.PORT) || 3000;
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+export default app;
